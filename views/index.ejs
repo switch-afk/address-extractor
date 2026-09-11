@@ -3,37 +3,41 @@
 <head>
   <%- include("partials/head", { title }) %>
 </head>
-<body class="min-h-dvh flex bg-indigo-950 text-slate-200 p-3 sm:p-6">
+<body class="min-h-dvh flex bg-indigo-950 text-slate-200 p-2 sm:p-6">
   <% const tabs = [
     { id: "home", label: "Home", href: "/" },
     { id: "history", label: "History", href: "/history" },
     { id: "settings", label: "Settings", href: "/settings" },
-  ]; %>
+  ];
+  const page = locals.content || tab;
+  const centered = page === "home" || page === "settings"; %>
 
-  <div class="flex flex-1 flex-col rounded-2xl border border-indigo-800 bg-indigo-900/40">
-    <header class="flex items-center justify-between gap-4 border-b border-indigo-800 px-4 sm:px-6">
-      <div class="flex items-center gap-4 sm:gap-6">
-        <div class="size-5 shrink-0 rounded-full bg-slate-100 shadow-[0_0_16px_rgba(226,232,240,0.4)]" aria-hidden="true"></div>
+  <div class="flex min-w-0 flex-1 flex-col rounded-2xl border border-indigo-800 bg-indigo-900/40">
+    <header class="flex items-center justify-between gap-2 border-b border-indigo-800 px-2 sm:gap-4 sm:px-6">
+      <div class="flex min-w-0 items-center gap-2 sm:gap-6">
+        <div class="hidden size-5 shrink-0 rounded-full bg-slate-100 shadow-[0_0_16px_rgba(226,232,240,0.4)] sm:block" aria-hidden="true"></div>
         <nav class="flex" aria-label="Main">
           <% tabs.forEach((t) => { %>
             <a href="<%= t.href %>"
                <% if (t.id === tab) { %>aria-current="page"<% } %>
-               class="-mb-px border-b-2 px-3 py-4 text-sm sm:px-4 sm:text-base focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-slate-200 <%= t.id === tab ? 'border-slate-100 text-white font-medium' : 'border-transparent text-slate-400 hover:text-slate-200' %>">
+               class="-mb-px border-b-2 px-2.5 py-4 text-sm sm:px-4 sm:text-base focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-slate-200 <%= t.id === tab ? 'border-slate-100 text-white font-medium' : 'border-transparent text-slate-400 hover:text-slate-200' %>">
               <%= t.label %>
             </a>
           <% }) %>
         </nav>
       </div>
 
-      <form action="/logout" method="POST">
-        <button type="submit" class="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-300 hover:border-slate-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+      <form action="/logout" method="POST" class="shrink-0">
+        <button type="submit" class="rounded-lg border border-slate-600 px-2.5 py-1.5 text-sm text-slate-300 hover:border-slate-400 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200 sm:px-3">
           Sign out
         </button>
       </form>
     </header>
 
-    <main class="flex-1 p-6 sm:p-10">
-      <%- include("tabs/" + (locals.content || tab)) %>
+    <main class="flex flex-1 px-4 py-6 sm:p-10">
+      <div class="<%= centered ? 'm-auto w-full max-w-xl' : 'w-full min-w-0' %>">
+        <%- include("tabs/" + page) %>
+      </div>
     </main>
   </div>
 

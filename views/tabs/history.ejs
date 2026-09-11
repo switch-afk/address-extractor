@@ -5,30 +5,39 @@
     No extractions yet. <a href="/" class="text-slate-200 underline hover:text-white">Paste an X post link on the Home tab</a> to start one.
   </p>
 <% } else { %>
-  <div class="mt-8 overflow-x-auto">
-    <table class="w-full min-w-[640px] text-left text-sm">
-      <thead class="border-b border-indigo-800 text-slate-400">
-        <tr>
-          <th class="py-2 pr-4 font-normal">Post</th>
-          <th class="py-2 pr-4 font-normal">Started</th>
-          <th class="py-2 pr-4 font-normal">Status</th>
-          <th class="py-2 pr-4 text-right font-normal">Replies checked</th>
-          <th class="py-2 pr-4 text-right font-normal">Addresses</th>
-          <th class="py-2"><span class="sr-only">Actions</span></th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-indigo-800/60">
-        <% extractions.forEach((e) => { %>
-          <tr>
-            <td class="max-w-xs truncate py-3 pr-4 text-slate-200"><%= e.postUrl.replace(/^https?:\/\/(www\.)?/, "") %></td>
-            <td class="py-3 pr-4 text-slate-400"><time datetime="<%= e.createdAt %>"><%= e.createdAt.slice(0, 16).replace("T", " ") %></time></td>
-            <td class="py-3 pr-4"><%- include("../partials/status", { status: e.status }) %></td>
-            <td class="py-3 pr-4 text-right tabular-nums"><%= e.repliesScanned %></td>
-            <td class="py-3 pr-4 text-right tabular-nums"><%= e.resultCount %></td>
-            <td class="py-3 text-right"><a href="/history/<%= e.id %>" class="text-slate-200 underline hover:text-white">View</a></td>
-          </tr>
-        <% }) %>
-      </tbody>
-    </table>
+  <% const grid = "md:grid md:grid-cols-[minmax(0,2.5fr)_minmax(0,1.3fr)_6rem_7rem_6rem_4rem] md:items-center md:gap-4"; %>
+  <div class="mt-8 text-sm">
+    <div class="hidden border-b border-indigo-800 pb-2 text-slate-400 <%= grid %>" aria-hidden="true">
+      <span>Post</span>
+      <span>Started</span>
+      <span>Status</span>
+      <span class="text-right">Replies checked</span>
+      <span class="text-right">Addresses</span>
+      <span></span>
+    </div>
+
+    <ul class="divide-y divide-indigo-800/60">
+      <% extractions.forEach((e) => { %>
+        <li class="py-4 md:py-3 <%= grid %>">
+          <div class="flex items-start justify-between gap-3 md:block">
+            <span class="min-w-0 truncate text-slate-200"><%= e.postUrl.replace(/^https?:\/\/(www\.)?/, "") %></span>
+            <span class="shrink-0 md:hidden"><%- include("../partials/status", { status: e.status }) %></span>
+          </div>
+          <div class="mt-1 text-slate-400 md:mt-0">
+            <time datetime="<%= e.createdAt %>"><%= e.createdAt.slice(0, 16).replace("T", " ") %></time>
+          </div>
+          <div class="hidden md:block"><%- include("../partials/status", { status: e.status }) %></div>
+          <div class="mt-2 flex items-center justify-between gap-3 md:contents">
+            <span class="text-slate-300 md:text-right md:tabular-nums">
+              <span class="tabular-nums"><%= e.repliesScanned %></span><span class="md:hidden"> replies</span>
+            </span>
+            <span class="text-slate-300 md:text-right md:tabular-nums">
+              <span class="tabular-nums"><%= e.resultCount %></span><span class="md:hidden"> addresses</span>
+            </span>
+            <a href="/history/<%= e.id %>" class="text-slate-200 underline hover:text-white md:text-right">View</a>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
   </div>
 <% } %>

@@ -23,7 +23,7 @@ if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {
 }
 
 if (!process.env.TWITTERAPI_KEY) {
-  console.warn("TWITTERAPI_KEY is not set in .env. Extractions won't work until you add it.");
+  console.warn("TWITTERAPI_KEY is not set. Add it in Settings before running an extraction.");
 }
 
 app.set("view engine", "ejs");
@@ -75,24 +75,37 @@ function toEnvValue(value) {
   return null;
 }
 
-async function saveAdminPassword(newPassword) {
-  const quoted = toEnvValue(newPassword);
+// Updates (or adds) one line in .env and applies it to the running app right away
+async function saveEnvValue(name, value) {
+  const quoted = toEnvValue(value);
   if (!quoted) return false;
 
-  const line = `ADMIN_PASSWORD=${quoted}`;
-  const pattern = /^\s*ADMIN_PASSWORD\s*=.*$/m;
-  const current = await fs.readFile(ENV_PATH, "utf8");
+  const line = `${name}=${quoted}`;
+  const pattern = new RegExp(`^\\s*${name}\\s*=.*$`, "m");
+
+  let current = "";
+  try {
+    current = await fs.readFile(ENV_PATH, "utf8");
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+
   const updated = pattern.test(current)
     ? current.replace(pattern, () => line)
-    : `${current.trimEnd()}\n${line}\n`;
+    : `${current.trimEnd()}\n${line}\n`.replace(/^\n/, "");
 
   // Write to a temp file first, then swap it in, so .env is never left half-written
   const tmpPath = `${ENV_PATH}.tmp`;
   await fs.writeFile(tmpPath, updated);
   await fs.rename(tmpPath, ENV_PATH);
 
-  process.env.ADMIN_PASSWORD = newPassword;
+  process.env[name] = value;
   return true;
+}
+
+function maskKey(key) {
+  if (!key) return null;
+  return `${"•".repeat(8)}${key.slice(-4)}`;
 }
 
 function renderHome(res, options = {}, status = 200) {
@@ -102,17 +115,23 @@ function renderHome(res, options = {}, status = 200) {
     error: null,
     postUrl: "",
     runningId: extractor.getRunningId(),
+    hasApiKey: Boolean(process.env.TWITTERAPI_KEY),
     ...options,
   });
 }
 
-function renderSettings(res, options = {}, status = 200) {
+async function renderSettings(res, options = {}, status = 200) {
   res.status(status).render("index", {
     title: "Settings",
     tab: "settings",
     passwordStep: null,
-    error: null,
+    passwordError: null,
+    editingKey: false,
+    keyError: null,
     flash: null,
+    maskedKey: maskKey(process.env.TWITTERAPI_KEY),
+    extractionCount: await store.count(),
+    runningId: extractor.getRunningId(),
     ...options,
   });
 }
@@ -161,7 +180,7 @@ app.post("/extract", async (req, res) => {
   const postUrl = String(req.body.postUrl || "").trim();
 
   if (!process.env.TWITTERAPI_KEY) {
-    return renderHome(res, { postUrl, error: "Add TWITTERAPI_KEY to your .env file, then restart the server." }, 500);
+    return renderHome(res, { postUrl, error: "Add your twitterapi.io API key in Settings, then try again." }, 400);
   }
 
   const tweetId = parseTweetId(postUrl);
@@ -225,22 +244,24 @@ app.get("/history/:id/download", async (req, res, next) => {
   res.send(exporters.toCsv(extraction, columns));
 });
 
-app.get("/settings", (req, res) => {
+app.get("/settings", async (req, res) => {
   const flash = req.session.flash || null;
   delete req.session.flash;
-  renderSettings(res, { flash });
+  await renderSettings(res, { flash });
 });
+
+// ----- Change password -----
 
 // Step 1 or step 2 of changing the password, depending on whether the current one was confirmed
-app.get("/settings/password", (req, res) => {
-  renderSettings(res, { passwordStep: isPasswordVerified(req) ? "new" : "verify" });
+app.get("/settings/password", async (req, res) => {
+  await renderSettings(res, { passwordStep: isPasswordVerified(req) ? "new" : "verify" });
 });
 
-app.post("/settings/password/verify", (req, res) => {
+app.post("/settings/password/verify", async (req, res) => {
   if (!passwordMatches(req.body.currentPassword || "")) {
     return renderSettings(
       res,
-      { passwordStep: "verify", error: "Incorrect password. Try again." },
+      { passwordStep: "verify", passwordError: "Incorrect password. Try again." },
       401
     );
   }
@@ -256,25 +277,62 @@ app.post("/settings/password", async (req, res) => {
   const newPassword = req.body.newPassword || "";
   const confirmPassword = req.body.confirmPassword || "";
 
-  let error = null;
-  if (newPassword !== confirmPassword) error = "The two passwords don't match.";
-  else if (newPassword.length < 8) error = "Use at least 8 characters.";
+  let passwordError = null;
+  if (newPassword !== confirmPassword) passwordError = "The two passwords don't match.";
+  else if (newPassword.length < 8) passwordError = "Use at least 8 characters.";
 
-  if (error) {
-    return renderSettings(res, { passwordStep: "new", error }, 400);
+  if (passwordError) {
+    return renderSettings(res, { passwordStep: "new", passwordError }, 400);
   }
 
-  const saved = await saveAdminPassword(newPassword);
+  const saved = await saveEnvValue("ADMIN_PASSWORD", newPassword);
   if (!saved) {
     return renderSettings(
       res,
-      { passwordStep: "new", error: "This password can't be saved. Remove line breaks and try again." },
+      { passwordStep: "new", passwordError: "This password can't be saved. Remove line breaks and try again." },
       400
     );
   }
 
   delete req.session.passwordVerifiedAt;
-  req.session.flash = { type: "success", text: "Password changed. Use the new one next time you sign in." };
+  req.session.flash = { text: "Password changed. Use the new one next time you sign in." };
+  res.redirect("/settings");
+});
+
+// ----- Change twitterapi.io key -----
+
+app.get("/settings/api-key", async (req, res) => {
+  await renderSettings(res, { editingKey: true });
+});
+
+app.post("/settings/api-key", async (req, res) => {
+  const apiKey = String(req.body.apiKey || "").trim();
+
+  let keyError = null;
+  if (!apiKey) keyError = "Paste your API key.";
+  else if (/\s/.test(apiKey) || apiKey.length > 256) keyError = "That doesn't look like an API key. Copy it again from your twitterapi.io dashboard.";
+
+  if (keyError) {
+    return renderSettings(res, { editingKey: true, keyError }, 400);
+  }
+
+  const saved = await saveEnvValue("TWITTERAPI_KEY", apiKey);
+  if (!saved) {
+    return renderSettings(res, { editingKey: true, keyError: "This key can't be saved. Copy it again and retry." }, 400);
+  }
+
+  req.session.flash = { text: "API key updated. New extractions will use it." };
+  res.redirect("/settings");
+});
+
+// ----- Reset data -----
+
+app.post("/settings/reset", async (req, res) => {
+  const runningId = extractor.getRunningId();
+  if (runningId) await extractor.stop(runningId);
+
+  await store.clearAll();
+  req.session.flash = { text: "All saved extractions were deleted." };
   res.redirect("/settings");
 });
 
