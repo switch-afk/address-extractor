@@ -1,6 +1,7 @@
 <% const e = extraction;
    const shared = {};
-   e.results.forEach((r) => { shared[r.key] = (shared[r.key] || 0) + 1; }); %>
+   e.results.forEach((r) => { shared[r.key] = (shared[r.key] || 0) + 1; });
+   const fmt = (n) => Number(n || 0).toLocaleString("en-US"); %>
 
 <a href="/history" class="text-sm text-slate-400 hover:text-white">Back to history</a>
 
@@ -14,36 +15,50 @@
 </p>
 
 <p class="mt-4 text-slate-300">
-  <span class="tabular-nums"><%= e.repliesScanned %></span> replies checked,
-  <span class="tabular-nums"><%= e.results.length %></span> addresses found.
+  <span class="tabular-nums"><%= fmt(e.repliesScanned) %></span> replies checked<% if (e.expectedReplies) { %> (X shows <span class="tabular-nums"><%= fmt(e.expectedReplies) %></span>)<% } %>,
+  <span class="tabular-nums"><%= fmt(e.results.length) %></span> addresses found.
   <span class="text-slate-500">Started <time datetime="<%= e.createdAt %>"><%= e.createdAt.slice(0, 16).replace("T", " ") %></time></span>
 </p>
 
 <% if (e.status === "running") { %>
-  <p class="mt-4 max-w-2xl rounded-lg border border-amber-700/60 bg-amber-900/20 px-4 py-3 text-sm text-amber-100" role="status">
-    Still fetching replies. This page updates every few seconds. On the free twitterapi.io plan each page of 20 replies takes about 5 seconds.
-  </p>
+  <div class="mt-4 flex max-w-3xl flex-wrap items-center justify-between gap-4 rounded-lg border border-amber-700/60 bg-amber-900/20 px-4 py-3" role="status">
+    <p class="text-sm text-amber-100">
+      <%= e.phase || "Starting" %>. This page updates every few seconds, and addresses appear below as they're found.
+    </p>
+    <form action="/history/<%= e.id %>/stop" method="POST" onsubmit="this.querySelector('button').disabled = true">
+      <button type="submit" class="rounded-lg border border-amber-500 px-4 py-1.5 text-sm font-medium text-amber-100 hover:bg-amber-500/20 disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-200">
+        Stop
+      </button>
+    </form>
+  </div>
   <script>setTimeout(() => location.reload(), 4000);</script>
+<% } else if (e.status === "stopped") { %>
+  <p class="mt-4 max-w-3xl rounded-lg border border-slate-600 bg-slate-800/30 px-4 py-3 text-sm text-slate-300">
+    You stopped this extraction. The addresses found before stopping are kept below.
+  </p>
 <% } else if (e.status === "failed") { %>
-  <p class="mt-4 max-w-2xl rounded-lg border border-rose-700 bg-rose-900/20 px-4 py-3 text-sm text-rose-200" role="alert">
+  <p class="mt-4 max-w-3xl rounded-lg border border-rose-700 bg-rose-900/20 px-4 py-3 text-sm text-rose-200" role="alert">
     <%= e.error %>
   </p>
-<% } else if (e.stoppedEarly) { %>
-  <p class="mt-4 max-w-2xl rounded-lg border border-amber-700/60 bg-amber-900/20 px-4 py-3 text-sm text-amber-100">
-    Stopped after <%= e.pages %> pages because of the MAX_REPLY_PAGES limit in .env. Raise it and run the extraction again to get the rest.
+<% } else if (e.status === "done" && e.expectedReplies && e.repliesScanned < e.expectedReplies) { %>
+  <p class="mt-4 max-w-3xl text-sm text-slate-400">
+    X's reply count also includes deleted replies, hidden replies and replies from protected or suspended accounts, so it's usually higher than what can be fetched.
   </p>
 <% } %>
 
 <% if (e.results.length) { %>
   <div class="mt-8 flex items-center justify-between gap-4">
     <h2 class="text-lg font-medium text-white">Results</h2>
-    <a href="/history/<%= e.id %>/csv" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
-      Download CSV
-    </a>
+    <% if (e.status !== "running") { %>
+      <button type="button" onclick="document.getElementById('download-dialog').showModal()"
+        class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+        Download
+      </button>
+    <% } %>
   </div>
 
   <div class="mt-4 overflow-x-auto">
-    <table class="w-full min-w-[720px] text-left text-sm">
+    <table class="w-full min-w-[760px] text-left text-sm">
       <thead class="border-b border-indigo-800 text-slate-400">
         <tr>
           <th class="py-2 pr-4 font-normal">Name</th>
@@ -55,19 +70,31 @@
       </thead>
       <tbody class="divide-y divide-indigo-800/60">
         <% e.results.forEach((r) => { %>
-          <tr class="align-top">
-            <td class="py-3 pr-4 text-slate-200"><%= r.name %></td>
-            <td class="py-3 pr-4">
+          <tr class="align-middle">
+            <td class="py-2.5 pr-4">
+              <div class="flex items-center gap-3">
+                <div class="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-800 text-xs font-medium text-slate-300" aria-hidden="true">
+                  <% if (r.avatar) { %>
+                    <img src="<%= r.avatar %>" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer"
+                      class="size-8 object-cover" onerror="this.remove()">
+                  <% } else { %>
+                    <%= (r.name || r.username || "?").trim().charAt(0).toUpperCase() %>
+                  <% } %>
+                </div>
+                <span class="text-slate-200"><%= r.name %></span>
+              </div>
+            </td>
+            <td class="py-2.5 pr-4">
               <a href="https://x.com/<%= encodeURIComponent(r.username) %>" target="_blank" rel="noopener noreferrer" class="text-slate-300 hover:text-white">@<%= r.username %></a>
             </td>
-            <td class="py-3 pr-4">
+            <td class="py-2.5 pr-4">
               <span class="break-all font-mono text-xs text-slate-100"><%= r.address %></span>
               <% if (shared[r.key] > 1) { %>
                 <span class="mt-1 block text-xs text-amber-300">Posted by <%= shared[r.key] %> accounts</span>
               <% } %>
             </td>
-            <td class="py-3 pr-4 text-slate-300"><%= r.chain %></td>
-            <td class="py-3 text-right">
+            <td class="py-2.5 pr-4 text-slate-300"><%= r.chain %></td>
+            <td class="py-2.5 text-right">
               <% if (r.replyUrl) { %>
                 <a href="<%= r.replyUrl %>" target="_blank" rel="noopener noreferrer" class="text-slate-400 underline hover:text-white">Reply</a>
               <% } %>
@@ -77,6 +104,65 @@
       </tbody>
     </table>
   </div>
+
+  <dialog id="download-dialog" aria-labelledby="download-title"
+    class="m-auto w-full max-w-md rounded-2xl border border-indigo-700 bg-indigo-950 p-0 text-slate-200 backdrop:bg-black/60">
+    <form id="download-form" action="/history/<%= e.id %>/download" method="GET" class="p-6">
+      <h2 id="download-title" class="text-lg font-medium text-white">Download results</h2>
+
+      <fieldset class="mt-5">
+        <legend class="text-sm text-slate-400">Include these columns</legend>
+        <div class="mt-3 space-y-2">
+          <% columns.forEach((c) => { %>
+            <label class="flex items-center gap-3 text-sm">
+              <input type="checkbox" name="columns" value="<%= c.id %>" checked class="size-4 accent-slate-100">
+              <%= c.label %>
+            </label>
+          <% }) %>
+        </div>
+      </fieldset>
+
+      <fieldset class="mt-6">
+        <legend class="text-sm text-slate-400">Format</legend>
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          <% [["csv", "CSV"], ["xlsx", "Excel"], ["pdf", "PDF"]].forEach(([value, label], i) => { %>
+            <label class="cursor-pointer rounded-lg border border-slate-600 px-3 py-2 text-center text-sm has-checked:border-slate-100 has-checked:bg-slate-100 has-checked:text-indigo-950 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-slate-200">
+              <input type="radio" name="format" value="<%= value %>" <%= i === 0 ? "checked" : "" %> class="sr-only">
+              <%= label %>
+            </label>
+          <% }) %>
+        </div>
+      </fieldset>
+
+      <p id="download-error" class="mt-4 min-h-5 text-sm text-rose-300" role="alert"></p>
+
+      <div class="mt-2 flex justify-end gap-3">
+        <button type="button" onclick="document.getElementById('download-dialog').close()"
+          class="px-3 py-2 text-sm text-slate-400 hover:text-white">
+          Cancel
+        </button>
+        <button type="submit"
+          class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+          Download
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const downloadForm = document.getElementById("download-form");
+    downloadForm.addEventListener("submit", (event) => {
+      const anyChecked = downloadForm.querySelectorAll('input[name="columns"]:checked').length > 0;
+      const error = document.getElementById("download-error");
+      if (!anyChecked) {
+        event.preventDefault();
+        error.textContent = "Choose at least one column.";
+        return;
+      }
+      error.textContent = "";
+      setTimeout(() => document.getElementById("download-dialog").close(), 300);
+    });
+  </script>
 <% } else if (e.status !== "running") { %>
   <p class="mt-8 text-slate-400">No wallet addresses were found in the replies.</p>
 <% } %>

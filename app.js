@@ -8,6 +8,7 @@ const fs = require("fs/promises");
 const path = require("path");
 const store = require("./lib/store");
 const extractor = require("./lib/extractor");
+const exporters = require("./lib/exporters");
 const { parseTweetId } = require("./lib/twitter");
 
 const app = express();
@@ -92,13 +93,6 @@ async function saveAdminPassword(newPassword) {
 
   process.env.ADMIN_PASSWORD = newPassword;
   return true;
-}
-
-function csvCell(value) {
-  let text = String(value ?? "");
-  // Stop spreadsheet apps from treating names like "=SUM(...)" as formulas
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
 }
 
 function renderHome(res, options = {}, status = 200) {
@@ -195,21 +189,40 @@ app.get("/history", async (req, res) => {
 app.get("/history/:id", async (req, res, next) => {
   const extraction = await store.get(req.params.id);
   if (!extraction) return next(); // falls through to the 404 page
-  res.render("index", { title: "Extraction", tab: "history", content: "extraction", extraction });
+  res.render("index", {
+    title: "Extraction",
+    tab: "history",
+    content: "extraction",
+    extraction,
+    columns: exporters.COLUMNS,
+  });
 });
 
-app.get("/history/:id/csv", async (req, res, next) => {
+app.post("/history/:id/stop", async (req, res) => {
+  await extractor.stop(req.params.id);
+  res.redirect(`/history/${encodeURIComponent(req.params.id)}`);
+});
+
+app.get("/history/:id/download", async (req, res, next) => {
   const extraction = await store.get(req.params.id);
   if (!extraction) return next();
 
-  const rows = [
-    ["name", "username", "wallet_address", "chain", "reply_url"],
-    ...extraction.results.map((r) => [r.name, r.username, r.address, r.chain, r.replyUrl]),
-  ];
-  const csv = "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const columns = exporters.pickColumns(req.query.columns);
+  const fileName = `wallets-${extraction.tweetId}`;
 
-  res.attachment(`wallets-${extraction.tweetId}.csv`);
-  res.send(csv);
+  if (req.query.format === "xlsx") {
+    const buffer = await exporters.toXlsx(extraction, columns);
+    res.attachment(`${fileName}.xlsx`);
+    return res.send(buffer);
+  }
+
+  if (req.query.format === "pdf") {
+    res.attachment(`${fileName}.pdf`);
+    return exporters.writePdf(extraction, columns, res);
+  }
+
+  res.attachment(`${fileName}.csv`);
+  res.send(exporters.toCsv(extraction, columns));
 });
 
 app.get("/settings", (req, res) => {

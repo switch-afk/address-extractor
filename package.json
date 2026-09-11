@@ -4,11 +4,13 @@
   "description": "",
   "main": "app.js",
   "scripts": {
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --minify",
     "dev:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --watch",
     "dev:server": "node --watch app.js",
     "dev": "concurrently \"npm:dev:css\" \"npm:dev:server\"",
-    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --minify",
-    "start": "node app.js"
+    "start": "node app.js",
+    "postinstall": "node scripts/download-fonts.js",
+    "fonts": "node scripts/download-fonts.js"
   },
   "repository": {
     "type": "git",
@@ -25,12 +27,18 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "ejs": "^6.0.1",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "express-session": "^1.19.0"
+    "express-session": "^1.19.0",
+    "fontkit": "^2.0.4",
+    "pdfkit": "^0.20.2"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
     "concurrently": "^10.0.5",
     "tailwindcss": "^4.3.3"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }
