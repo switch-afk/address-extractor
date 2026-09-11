@@ -2,42 +2,37 @@
 
 Paste a link to an X (Twitter) post and get back every wallet address people posted in the replies, along with who posted it. Results are saved and can be downloaded as CSV, Excel or PDF.
 
-Built with Node.js, Express, EJS and Tailwind CSS. Reply data comes from [twitterapi.io](https://twitterapi.io).
+Node.js + Express + EJS + Tailwind CSS. Reply data comes from [twitterapi.io](https://twitterapi.io).
 
 ## What it does
 
-- Fetches replies to a post from five different twitterapi.io sources and merges them, so busy posts return far more replies than any single endpoint gives on its own
-- Finds EVM (Ethereum, BSC, Polygon…), Solana, Bitcoin and Tron addresses, including ones hidden inside links
-- Validates every address (checksums and lengths), so transaction hashes and typos are skipped
-- Flags an address posted by more than one account, which is a sign of multi-account farming
-- Shows each person's profile picture, display name and @username next to their address
+- Merges replies from five twitterapi.io sources, so busy posts return far more replies than any single endpoint gives
+- Finds EVM, Solana, Bitcoin and Tron addresses, including ones inside links
+- Validates every address, so transaction hashes and typos are skipped
+- Flags an address posted by more than one account
+- Shows profile picture, display name and @username next to each address
 - Runs in the background with live progress and a Stop button
-- Downloads results with your choice of columns, as CSV, Excel or PDF
+- Download with your choice of columns as CSV, Excel or PDF
 - Whole site sits behind an admin password
 
-## Requirements
-
-- Node.js 20 or newer
-- A [twitterapi.io](https://twitterapi.io/dashboard) account and API key (sign-up is free and includes trial credit)
-
 ## Setup
+
+Needs Node.js 20+ and a [twitterapi.io](https://twitterapi.io/dashboard) API key.
 
 ```bash
 git clone https://github.com/switch-afk/address-extractor.git
 cd address-extractor
 npm install
+cp .env.example .env
 ```
 
-`npm install` also downloads the fonts used for PDF exports (about 22 MB) into a `fonts/` folder. If that step fails, the app still works; run `npm run fonts` later to retry.
-
-Create your `.env` file:
+Generate a session secret:
 
 ```bash
-cp .env.example .env
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-Open `.env` and fill it in:
+Open `.env` and fill in the three blanks:
 
 ```
 ADMIN_PASSWORD=a-password-you-choose
@@ -46,47 +41,50 @@ TWITTERAPI_KEY=your-twitterapi-io-key
 TWITTERAPI_DELAY_MS=300
 ```
 
-`SESSION_SECRET` should be the random string you just generated, and it signs your login cookie, so keep it private. `TWITTERAPI_KEY` can also be added later from the Settings page. `TWITTERAPI_DELAY_MS` is the wait between API requests; the free twitterapi.io tier allows only one request every 5 seconds, so use `5000` until you add credits.
+Set `TWITTERAPI_DELAY_MS=5000` if you're on the free twitterapi.io tier, which allows one request every 5 seconds.
 
-`.env` is never committed, so each machine you deploy to needs its own.
-
-## Running it
+## Start with pm2
 
 ```bash
-npm run dev
-```
-
-Open http://localhost:3000 and sign in with your `ADMIN_PASSWORD`. In GitHub Codespaces, click "Open in Browser" on the port 3000 notification, or use the globe icon in the Ports tab.
-
-`npm run dev` rebuilds Tailwind CSS and restarts the server automatically as you edit. Press Ctrl + C to stop.
-
-For production:
-
-```bash
+npm install -g pm2
 npm run build:css
-npm start
+pm2 start npm --name address-extractor -- start
+pm2 save
+pm2 startup
 ```
+
+`pm2 startup` prints one command to copy, paste and run, which makes the app come back after a reboot.
+
+Open http://localhost:3000 and sign in with your `ADMIN_PASSWORD`.
+
+Useful commands:
+
+```bash
+pm2 logs address-extractor
+pm2 restart address-extractor
+pm2 stop address-extractor
+```
+
+Restart after editing `.env`, since the app reads it at startup. Changing the password or API key from Settings applies immediately without a restart.
+
+For development instead of pm2, use `npm run dev`, which rebuilds CSS and restarts on file changes.
 
 ## How to use it
 
 1. **Home** — paste an X post link (`https://x.com/username/status/1234567890`) and click Extract.
-2. You land on a progress page that updates itself. It shows which source is being read and counts replies as they come in. Addresses appear as they're found, and Stop keeps whatever was found so far.
-3. When it's done, click **Download**, tick the columns you want, pick CSV, Excel or PDF, and download.
-4. **History** lists every past extraction. Click View to reopen one and download it again.
+2. The progress page updates itself and shows addresses as they're found. Stop keeps whatever was found so far.
+3. Click **Download**, tick the columns you want, pick CSV, Excel or PDF.
+4. **History** lists past extractions. Click View to reopen and download again.
 
 ### Why the reply count is lower than X shows
 
-X's reply counter includes replies it hides behind "Show probable spam", replies that were deleted, and replies from accounts that are suspended or protected. None of those can be fetched through the API. On giveaway-style posts with hundreds of near-identical replies, X's spam filter hides a large share of them, so the fetched count being 30–40% below X's number is normal and not a bug.
+X's counter includes replies hidden behind "Show probable spam", deleted replies, and replies from suspended or protected accounts. None of those can be fetched through the API. On giveaway posts with hundreds of near-identical replies, the fetched count being 30–40% below X's number is normal.
 
 ## Settings
 
-- **Password** — change the admin password. You confirm the current one first, then type the new one twice. The new password is written to `.env` and takes effect immediately.
-- **twitterapi.io API key** — shows the current key masked and lets you paste a new one. No need to enter the old key.
-- **Reset data** — deletes every saved extraction after a confirmation. Your password and API key are kept. If an extraction is running, it's stopped first.
-
-## Cost
-
-twitterapi.io charges per tweet returned, roughly $0.15 per 1,000 tweets. Because replies are gathered from several sources and merged, expect around $0.50–0.75 per 1,000 replies on a post. Credits are bought in advance and never expire.
+- **Password** — confirm the current one, then set a new one. Written to `.env`.
+- **twitterapi.io API key** — shows the current key masked and accepts a new one. The old key isn't needed.
+- **Reset data** — deletes all saved extractions after a confirmation. Password and API key are kept.
 
 ## Project layout
 
@@ -99,8 +97,7 @@ address-extractor/
 │   ├── extractor.js           runs an extraction in the background
 │   ├── store.js               saves extractions as JSON files
 │   └── exporters.js           CSV, Excel and PDF output
-├── scripts/
-│   └── download-fonts.js      fetches the PDF fonts (runs after npm install)
+├── scripts/download-fonts.js  fetches PDF fonts (runs after npm install)
 ├── views/
 │   ├── index.ejs              shared layout with the tab bar
 │   ├── login.ejs, 404.ejs, 500.ejs
@@ -112,22 +109,12 @@ address-extractor/
 └── fonts/                     PDF fonts (ignored by git)
 ```
 
-## Adding a new tab
-
-1. Add an entry to the `tabs` array in `views/index.ejs`.
-2. Add a route in `app.js` that renders `index` with `tab: "yourtab"`.
-3. Create `views/tabs/yourtab.ejs`.
-
 ## Notes and limits
 
-- Only one extraction runs at a time.
-- Saving `app.js` or anything in `lib/` restarts the server and cancels a running extraction, which is then marked Failed with its results kept. Editing `.ejs` files is safe.
-- Sessions are held in memory, so a server restart signs you out.
+- One extraction runs at a time.
+- Restarting the server cancels a running extraction; it's marked Failed with results kept.
+- Sessions are held in memory, so a restart signs you out.
 - Addresses inside images can't be read, and neither can replies X hides from logged-out viewers.
 - ENS names (`name.eth`) are not collected.
-
-## Deploying
-
-On a server, set `NODE_ENV=production` so session cookies are marked secure, and run the app behind HTTPS. Create a fresh `.env` on that machine with its own `SESSION_SECRET` and password. Run `npm run build:css` as part of your deploy, and use a process manager such as `pm2` or a systemd service to keep `npm start` running.
-
-Back up the `data/` folder if you want to keep past extractions, since it holds all saved results.
+- Behind HTTPS, set `NODE_ENV=production` so session cookies are marked secure.
+- Back up `data/` to keep past extractions.
