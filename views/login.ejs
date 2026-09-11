@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include("partials/head", { title }) %>
+</head>
+<body class="min-h-screen bg-indigo-950 text-slate-200 flex items-center justify-center p-6">
+  <main class="w-full max-w-sm">
+    <div class="mx-auto mb-8 size-16 rounded-full bg-slate-100 shadow-[0_0_40px_rgba(226,232,240,0.3)]"></div>
+    <h1 class="text-center text-3xl font-semibold tracking-tight text-white">Bright Moon</h1>
+    <p class="mt-2 text-center text-slate-400">Enter the admin password to continue.</p>
+
+    <form action="/login" method="POST" class="mt-8 space-y-4">
+      <div>
+        <label for="password" class="block text-sm text-slate-300 mb-1">Password</label>
+        <input id="password" name="password" type="password" required autofocus autocomplete="current-password"
+          class="w-full rounded-lg border border-slate-600 bg-indigo-900/50 px-3 py-2 text-white focus:border-slate-300 focus:outline-none">
+      </div>
+
+      <% if (error) { %>
+        <p class="text-sm text-rose-300" role="alert"><%= error %></p>
+      <% } %>
+
+      <button type="submit" class="w-full rounded-lg bg-slate-100 px-4 py-2 font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+        Sign in
+      </button>
+    </form>
+  </main>
+</body>
+</html>

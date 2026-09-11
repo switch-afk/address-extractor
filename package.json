@@ -1,0 +1,36 @@
+{
+  "name": "bright-moon",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "dev:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --watch",
+    "dev:server": "node --watch app.js",
+    "dev": "concurrently \"npm:dev:css\" \"npm:dev:server\"",
+    "build:css": "tailwindcss -i ./src/input.css -o ./public/css/style.css --minify",
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/switch-afk/bright-moon.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/switch-afk/bright-moon/issues"
+  },
+  "homepage": "https://github.com/switch-afk/bright-moon#readme",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "ejs": "^6.0.1",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "concurrently": "^10.0.5",
+    "tailwindcss": "^4.3.3"
+  }
+}

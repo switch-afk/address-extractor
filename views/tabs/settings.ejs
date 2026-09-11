@@ -1,0 +1,74 @@
+<h1 class="text-3xl font-semibold tracking-tight text-white">You are at settings</h1>
+
+<% if (flash) { %>
+  <p class="mt-6 max-w-md rounded-lg border border-emerald-700 bg-emerald-900/30 px-4 py-3 text-sm text-emerald-200" role="status">
+    <%= flash.text %>
+  </p>
+<% } %>
+
+<section class="mt-10 max-w-md">
+  <h2 class="text-lg font-medium text-white">Password</h2>
+
+  <% if (!passwordStep) { %>
+    <p class="mt-1 text-sm text-slate-400">Change the admin password used to sign in.</p>
+    <a href="/settings/password" class="mt-4 inline-block rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+      Change password
+    </a>
+
+  <% } else if (passwordStep === "verify") { %>
+    <p class="mt-1 text-sm text-slate-400">Enter your current password to continue.</p>
+    <form action="/settings/password/verify" method="POST" class="mt-4 space-y-4">
+      <div>
+        <label for="currentPassword" class="mb-1 block text-sm text-slate-300">Current password</label>
+        <input id="currentPassword" name="currentPassword" type="password" required autofocus autocomplete="current-password"
+          class="w-full rounded-lg border border-slate-600 bg-indigo-950/60 px-3 py-2 text-white focus:border-slate-300 focus:outline-none">
+      </div>
+      <% if (error) { %>
+        <p class="text-sm text-rose-300" role="alert"><%= error %></p>
+      <% } %>
+      <div class="flex items-center gap-3">
+        <button type="submit" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+          Continue
+        </button>
+        <a href="/settings" class="px-2 py-2 text-sm text-slate-400 hover:text-white">Cancel</a>
+      </div>
+    </form>
+
+  <% } else if (passwordStep === "new") { %>
+    <p class="mt-1 text-sm text-slate-400">Choose a new password with at least 8 characters.</p>
+    <form id="new-password-form" action="/settings/password" method="POST" class="mt-4 space-y-4">
+      <div>
+        <label for="newPassword" class="mb-1 block text-sm text-slate-300">New password</label>
+        <input id="newPassword" name="newPassword" type="password" required minlength="8" autofocus autocomplete="new-password"
+          class="w-full rounded-lg border border-slate-600 bg-indigo-950/60 px-3 py-2 text-white focus:border-slate-300 focus:outline-none">
+      </div>
+      <div>
+        <label for="confirmPassword" class="mb-1 block text-sm text-slate-300">Confirm new password</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" required minlength="8" autocomplete="new-password"
+          class="w-full rounded-lg border border-slate-600 bg-indigo-950/60 px-3 py-2 text-white focus:border-slate-300 focus:outline-none">
+      </div>
+      <p id="match-message" class="text-sm text-rose-300" role="alert"><%= error || "" %></p>
+      <div class="flex items-center gap-3">
+        <button type="submit" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+          Save new password
+        </button>
+        <a href="/settings" class="px-2 py-2 text-sm text-slate-400 hover:text-white">Cancel</a>
+      </div>
+    </form>
+
+    <script>
+      const newPassword = document.getElementById("newPassword");
+      const confirmPassword = document.getElementById("confirmPassword");
+      const matchMessage = document.getElementById("match-message");
+
+      function checkMatch() {
+        const mismatch = confirmPassword.value !== "" && newPassword.value !== confirmPassword.value;
+        confirmPassword.setCustomValidity(mismatch ? "The two passwords don't match." : "");
+        matchMessage.textContent = mismatch ? "The two passwords don't match." : "";
+      }
+
+      newPassword.addEventListener("input", checkMatch);
+      confirmPassword.addEventListener("input", checkMatch);
+    </script>
+  <% } %>
+</section>
