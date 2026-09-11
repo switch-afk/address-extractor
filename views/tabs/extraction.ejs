@@ -1,0 +1,82 @@
+<% const e = extraction;
+   const shared = {};
+   e.results.forEach((r) => { shared[r.key] = (shared[r.key] || 0) + 1; }); %>
+
+<a href="/history" class="text-sm text-slate-400 hover:text-white">Back to history</a>
+
+<div class="mt-4 flex flex-wrap items-center gap-3">
+  <h1 class="text-3xl font-semibold tracking-tight text-white">Wallet addresses</h1>
+  <%- include("../partials/status", { status: e.status }) %>
+</div>
+
+<p class="mt-2 break-all text-slate-400">
+  <a href="<%= e.postUrl.startsWith('http') ? e.postUrl : 'https://' + e.postUrl %>" target="_blank" rel="noopener noreferrer" class="underline hover:text-white"><%= e.postUrl %></a>
+</p>
+
+<p class="mt-4 text-slate-300">
+  <span class="tabular-nums"><%= e.repliesScanned %></span> replies checked,
+  <span class="tabular-nums"><%= e.results.length %></span> addresses found.
+  <span class="text-slate-500">Started <time datetime="<%= e.createdAt %>"><%= e.createdAt.slice(0, 16).replace("T", " ") %></time></span>
+</p>
+
+<% if (e.status === "running") { %>
+  <p class="mt-4 max-w-2xl rounded-lg border border-amber-700/60 bg-amber-900/20 px-4 py-3 text-sm text-amber-100" role="status">
+    Still fetching replies. This page updates every few seconds. On the free twitterapi.io plan each page of 20 replies takes about 5 seconds.
+  </p>
+  <script>setTimeout(() => location.reload(), 4000);</script>
+<% } else if (e.status === "failed") { %>
+  <p class="mt-4 max-w-2xl rounded-lg border border-rose-700 bg-rose-900/20 px-4 py-3 text-sm text-rose-200" role="alert">
+    <%= e.error %>
+  </p>
+<% } else if (e.stoppedEarly) { %>
+  <p class="mt-4 max-w-2xl rounded-lg border border-amber-700/60 bg-amber-900/20 px-4 py-3 text-sm text-amber-100">
+    Stopped after <%= e.pages %> pages because of the MAX_REPLY_PAGES limit in .env. Raise it and run the extraction again to get the rest.
+  </p>
+<% } %>
+
+<% if (e.results.length) { %>
+  <div class="mt-8 flex items-center justify-between gap-4">
+    <h2 class="text-lg font-medium text-white">Results</h2>
+    <a href="/history/<%= e.id %>/csv" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-indigo-950 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-200">
+      Download CSV
+    </a>
+  </div>
+
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[720px] text-left text-sm">
+      <thead class="border-b border-indigo-800 text-slate-400">
+        <tr>
+          <th class="py-2 pr-4 font-normal">Name</th>
+          <th class="py-2 pr-4 font-normal">Username</th>
+          <th class="py-2 pr-4 font-normal">Wallet address</th>
+          <th class="py-2 pr-4 font-normal">Chain</th>
+          <th class="py-2"><span class="sr-only">Reply</span></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-indigo-800/60">
+        <% e.results.forEach((r) => { %>
+          <tr class="align-top">
+            <td class="py-3 pr-4 text-slate-200"><%= r.name %></td>
+            <td class="py-3 pr-4">
+              <a href="https://x.com/<%= encodeURIComponent(r.username) %>" target="_blank" rel="noopener noreferrer" class="text-slate-300 hover:text-white">@<%= r.username %></a>
+            </td>
+            <td class="py-3 pr-4">
+              <span class="break-all font-mono text-xs text-slate-100"><%= r.address %></span>
+              <% if (shared[r.key] > 1) { %>
+                <span class="mt-1 block text-xs text-amber-300">Posted by <%= shared[r.key] %> accounts</span>
+              <% } %>
+            </td>
+            <td class="py-3 pr-4 text-slate-300"><%= r.chain %></td>
+            <td class="py-3 text-right">
+              <% if (r.replyUrl) { %>
+                <a href="<%= r.replyUrl %>" target="_blank" rel="noopener noreferrer" class="text-slate-400 underline hover:text-white">Reply</a>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+<% } else if (e.status !== "running") { %>
+  <p class="mt-8 text-slate-400">No wallet addresses were found in the replies.</p>
+<% } %>

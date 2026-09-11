@@ -6,6 +6,9 @@ const dotenv = require("dotenv");
 const crypto = require("crypto");
 const fs = require("fs/promises");
 const path = require("path");
+const store = require("./lib/store");
+const extractor = require("./lib/extractor");
+const { parseTweetId } = require("./lib/twitter");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +19,10 @@ const PASSWORD_VERIFY_WINDOW = 5 * 60 * 1000; // 5 minutes to set a new password
 if (!process.env.ADMIN_PASSWORD || !process.env.SESSION_SECRET) {
   console.error("Missing ADMIN_PASSWORD or SESSION_SECRET in .env");
   process.exit(1);
+}
+
+if (!process.env.TWITTERAPI_KEY) {
+  console.warn("TWITTERAPI_KEY is not set in .env. Extractions won't work until you add it.");
 }
 
 app.set("view engine", "ejs");
@@ -87,6 +94,24 @@ async function saveAdminPassword(newPassword) {
   return true;
 }
 
+function csvCell(value) {
+  let text = String(value ?? "");
+  // Stop spreadsheet apps from treating names like "=SUM(...)" as formulas
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function renderHome(res, options = {}, status = 200) {
+  res.status(status).render("index", {
+    title: "Home",
+    tab: "home",
+    error: null,
+    postUrl: "",
+    runningId: extractor.getRunningId(),
+    ...options,
+  });
+}
+
 function renderSettings(res, options = {}, status = 200) {
   res.status(status).render("index", {
     title: "Settings",
@@ -135,11 +160,56 @@ app.post("/logout", (req, res, next) => {
 app.use(requireAuth);
 
 app.get("/", (req, res) => {
-  res.render("index", { title: "Home", tab: "home" });
+  renderHome(res);
 });
 
-app.get("/history", (req, res) => {
-  res.render("index", { title: "History", tab: "history" });
+app.post("/extract", async (req, res) => {
+  const postUrl = String(req.body.postUrl || "").trim();
+
+  if (!process.env.TWITTERAPI_KEY) {
+    return renderHome(res, { postUrl, error: "Add TWITTERAPI_KEY to your .env file, then restart the server." }, 500);
+  }
+
+  const tweetId = parseTweetId(postUrl);
+  if (!tweetId) {
+    return renderHome(
+      res,
+      { postUrl, error: "That isn't an X post link. It should look like https://x.com/username/status/1234567890." },
+      400
+    );
+  }
+
+  if (extractor.getRunningId()) {
+    return renderHome(res, { postUrl, error: "Another extraction is still running. Wait for it to finish, then try again." }, 409);
+  }
+
+  const record = await extractor.start({ postUrl, tweetId });
+  res.redirect(`/history/${record.id}`);
+});
+
+app.get("/history", async (req, res) => {
+  const extractions = await store.list();
+  res.render("index", { title: "History", tab: "history", extractions });
+});
+
+app.get("/history/:id", async (req, res, next) => {
+  const extraction = await store.get(req.params.id);
+  if (!extraction) return next(); // falls through to the 404 page
+  res.render("index", { title: "Extraction", tab: "history", content: "extraction", extraction });
+});
+
+app.get("/history/:id/csv", async (req, res, next) => {
+  const extraction = await store.get(req.params.id);
+  if (!extraction) return next();
+
+  const rows = [
+    ["name", "username", "wallet_address", "chain", "reply_url"],
+    ...extraction.results.map((r) => [r.name, r.username, r.address, r.chain, r.replyUrl]),
+  ];
+  const csv = "\uFEFF" + rows.map((row) => row.map(csvCell).join(",")).join("\r\n");
+
+  res.attachment(`wallets-${extraction.tweetId}.csv`);
+  res.send(csv);
 });
 
 app.get("/settings", (req, res) => {
@@ -212,6 +282,8 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   res.status(500).render("500", { title: "Something went wrong" });
 });
+
+store.markInterrupted().catch((err) => console.error("Couldn't check old extractions:", err));
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

@@ -1,0 +1,7 @@
+<% const styles = {
+  running: "border-amber-600 text-amber-200",
+  done: "border-emerald-700 text-emerald-200",
+  failed: "border-rose-700 text-rose-200",
+};
+const labels = { running: "Running", done: "Done", failed: "Failed" }; %>
+<span class="inline-block rounded-full border px-2 py-0.5 text-xs <%= styles[status] || '' %>"><%= labels[status] || status %></span>
